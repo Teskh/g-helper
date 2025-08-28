@@ -245,7 +245,7 @@ namespace GHelper.AnimeMatrix
                     try
                     {
                         Logger.WriteLine($"Matrix candidate: PID={dev.ProductID:X4} FRL={dev.GetMaxFeatureReportLength()} PATH={dev.DevicePath}");
-                        if (TryProvider(new WindowsUsbProvider((ushort)cfgVid, dev.ProductID, dev.DevicePath, 500)))
+                        if (TryProvider(new WindowsUsbProvider((ushort)cfgVid, (ushort)dev.ProductID, dev.DevicePath, 500)))
                         {
                             // Save detected PID for next runs
                             AppConfig.Set("matrix_pid", dev.ProductID);
