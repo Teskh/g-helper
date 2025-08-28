@@ -1,4 +1,4 @@
-﻿using GHelper.AnimeMatrix.Communication;
+using GHelper.AnimeMatrix.Communication;
 using System.Management;
 using System.Text;
 
@@ -106,6 +106,71 @@ namespace GHelper.AnimeMatrix
 
         public SlashDevice(ushort productId = 0x193B) : base(0x0B05, productId, 128)
         {
+        }
+
+        public override void SetProvider()
+        {
+            // Prefer explicit HID path from config when it looks like a HID path
+            try
+            {
+                string cfgPath = AppConfig.GetString("matrix_path");
+                if (!string.IsNullOrWhiteSpace(cfgPath) && cfgPath.ToLower().Contains("hid#vid_"))
+                {
+                    Logger.WriteLine("Slash: Using HID path override");
+                    _usbProvider = new GHelper.AnimeMatrix.Communication.Platform.WindowsUsbProvider(VendorID(), ProductID(), cfgPath, 500);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine("Slash: HID path override failed: " + ex.Message);
+            }
+
+            // Enumerate all HID devices for this vendor/product and pick one that exposes our reportID
+            try
+            {
+                var candidates = HidSharp.DeviceList.Local
+                    .GetHidDevices(VendorID(), ProductID())
+                    .Where(d =>
+                    {
+                        try
+                        {
+                            return d.GetReportDescriptor().TryGetReport(HidSharp.Reports.ReportType.Feature, reportID, out _);
+                        }
+                        catch { return false; }
+                    })
+                    .OrderByDescending(d =>
+                    {
+                        try { return d.GetMaxFeatureReportLength(); } catch { return 0; }
+                    })
+                    .ToList();
+
+                foreach (var dev in candidates)
+                {
+                    try
+                    {
+                        Logger.WriteLine($"Slash: Candidate {dev.DevicePath} FRL={dev.GetMaxFeatureReportLength()}");
+                        _usbProvider = new GHelper.AnimeMatrix.Communication.Platform.WindowsUsbProvider(VendorID(), ProductID(), dev.DevicePath, 500);
+                        // Wake to validate
+                        Set(CreatePacket(Encoding.ASCII.GetBytes("ASUS Tech.Inc.")), "SlashWakeCheck");
+                        Logger.WriteLine("Slash: Provider OK");
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.WriteLine("Slash: Candidate failed: " + ex.Message);
+                        try { _usbProvider?.Dispose(); } catch { }
+                        _usbProvider = null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine("Slash: Enumeration error: " + ex.Message);
+            }
+
+            // Fallback to base behavior (may or may not work depending on FRL filtering)
+            base.SetProvider();
         }
 
         public void WakeUp()
