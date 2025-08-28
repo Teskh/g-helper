@@ -37,16 +37,16 @@ namespace GHelper.AnimeMatrix
         {
             settings = settingsForm;
             // Allow forcing Anime Matrix UI even if model/device is not detected
-            if (!AppConfig.IsSlash() && !AppConfig.IsAnimeMatrix() && !AppConfig.Is("matrix_force")) return;
+            if (!AppConfig.IsSlash() && !AppConfig.IsAnimeMatrix() && !AppConfig.Is("matrix_force") && !AppConfig.Is("slash_force")) return;
             
             try
             {
-                if (AppConfig.IsSlash())
+                if (AppConfig.IsSlash() || AppConfig.Is("slash_force"))
                 {
-                    if (AppConfig.IsSlashAura())
+                    if (AppConfig.IsSlashAura() || AppConfig.Is("slash_aura") || AppConfig.Get("slash_pid", 0) == 0x19B6)
                         deviceSlash = new SlashDeviceAura();
                     else
-                        deviceSlash = new SlashDevice();
+                        deviceSlash = (AppConfig.Get("slash_pid", 0) > 0) ? new SlashDevice((ushort)AppConfig.Get("slash_pid")) : new SlashDevice();
                 }
                 else
                 {
