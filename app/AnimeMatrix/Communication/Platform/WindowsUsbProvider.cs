@@ -34,15 +34,26 @@ namespace GHelper.AnimeMatrix.Communication.Platform
         {
             try
             {
+                // Prefer a device with sufficient feature report length
                 HidDevice = DeviceList.Local
                     .GetHidDevices(vendorId, productId)
                     .First(x => x.GetMaxFeatureReportLength() >= maxFeatureReportLength);
-                Logger.WriteLine("Matrix Device: " + HidDevice.DevicePath + " " + HidDevice.GetMaxFeatureReportLength());
             }
             catch
             {
-                throw new IOException("Matrix control device was not found on your machine.");
+                // Fallback: pick the first device with matching VID/PID if size check fails
+                try
+                {
+                    HidDevice = DeviceList.Local
+                        .GetHidDevices(vendorId, productId)
+                        .First();
+                }
+                catch
+                {
+                    throw new IOException("Matrix control device was not found on your machine.");
+                }
             }
+            Logger.WriteLine("Matrix Device: " + HidDevice.DevicePath + " " + HidDevice.GetMaxFeatureReportLength());
 
             var config = new OpenConfiguration();
             config.SetOption(OpenOption.Interruptible, true);
