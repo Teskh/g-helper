@@ -1,4 +1,4 @@
-﻿// Source thanks to https://github.com/vddCore/Starlight with some adjustments from me
+// Source thanks to https://github.com/vddCore/Starlight with some adjustments from me
 
 using GHelper.AnimeMatrix.Communication;
 using System.Drawing.Drawing2D;
@@ -139,6 +139,48 @@ namespace GHelper.AnimeMatrix
 
             LoadMFont();
 
+        }
+
+        // Deferred provider constructor used when forcing Anime Matrix without detected device
+        public AnimeMatrixDevice(bool deferProvider) : base(0x0B05, 0x193B)
+        {
+            // Default to GA402 layout and then adjust by model like the primary ctor
+            _maxFeatureReportLength = 640;
+
+            if (AppConfig.ContainsModel("401"))
+            {
+                _model = AnimeType.GA401;
+                MaxColumns = 33;
+                MaxRows = 55;
+                LedCount = 1245;
+                UpdatePageLength = 410;
+                FullRows = 5;
+                LedStart = 1;
+            }
+
+            if (AppConfig.ContainsModel("GU604"))
+            {
+                _model = AnimeType.GU604;
+                MaxColumns = 39;
+                MaxRows = 92;
+                LedCount = 1711;
+                UpdatePageLength = 630;
+                FullRows = 9;
+            }
+
+            if (AppConfig.ContainsModel("G635") || AppConfig.ContainsModel("G615") || AppConfig.ContainsModel("G835") || AppConfig.ContainsModel("G815"))
+            {
+                _model = AnimeType.STRIX;
+                MaxColumns = 34;
+                MaxRows = 68;
+                LedCount = 810;
+                UpdatePageLength = 490;
+                FullRows = 29;
+            }
+
+            _displayBuffer = new byte[LedCount];
+            LoadMFont();
+            // Provider will be opened later via SetProvider() in control logic
         }
 
         public void WakeUp()
