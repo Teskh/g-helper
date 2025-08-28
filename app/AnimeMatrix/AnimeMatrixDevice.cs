@@ -2,7 +2,6 @@
 
 using GHelper.AnimeMatrix.Communication;
 using GHelper.AnimeMatrix.Communication.Platform;
-using HidSharp;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Text;
@@ -236,7 +235,8 @@ namespace GHelper.AnimeMatrix
             // 3) Enumerate all ASUS HID devices and probe candidates by path
             try
             {
-                var devices = DeviceList.Local.GetHidDevices((ushort)cfgVid)
+                var devices = HidSharp.DeviceList.Local.GetHidDevices()
+                    .Where(d => d.VendorID == (ushort)cfgVid && d.GetMaxFeatureReportLength() >= _maxFeatureReportLength)
                     .OrderByDescending(d => d.GetMaxFeatureReportLength())
                     .ToList();
 
