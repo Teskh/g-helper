@@ -1,4 +1,4 @@
-﻿using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
@@ -36,7 +36,8 @@ namespace GHelper.AnimeMatrix
         public AniMatrixControl(SettingsForm settingsForm)
         {
             settings = settingsForm;
-            if (!AppConfig.IsSlash() && !AppConfig.IsAnimeMatrix()) return;
+            // Allow forcing Anime Matrix UI even if model/device is not detected
+            if (!AppConfig.IsSlash() && !AppConfig.IsAnimeMatrix() && !AppConfig.Is("matrix_force")) return;
             
             try
             {
@@ -49,7 +50,11 @@ namespace GHelper.AnimeMatrix
                 }
                 else
                 {
-                    deviceMatrix = new AnimeMatrixDevice();
+                    // In force mode, create a deferred device that opens later on first use
+                    if (AppConfig.Is("matrix_force"))
+                        deviceMatrix = new AnimeMatrixDevice(true);
+                    else
+                        deviceMatrix = new AnimeMatrixDevice();
                 }
 
                 matrixTimer = new System.Timers.Timer(100);
