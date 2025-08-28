@@ -1,6 +1,8 @@
 // Source thanks to https://github.com/vddCore/Starlight with some adjustments from me
 
 using GHelper.AnimeMatrix.Communication;
+using GHelper.AnimeMatrix.Communication.Platform;
+using HidSharp;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Text;
@@ -181,6 +183,88 @@ namespace GHelper.AnimeMatrix
             _displayBuffer = new byte[LedCount];
             LoadMFont();
             // Provider will be opened later via SetProvider() in control logic
+        }
+
+        public override void SetProvider()
+        {
+            // Allow config overrides and robust detection when default path fails
+            string cfgPath = AppConfig.GetString("matrix_path");
+            int cfgVid = AppConfig.Get("matrix_vid", this.VendorID());
+            int cfgPid = AppConfig.Get("matrix_pid", this.ProductID());
+
+            // Helper to test a provider candidate by sending a harmless wake packet
+            bool TryProvider(UsbProvider provider)
+            {
+                try
+                {
+                    _usbProvider = provider;
+                    // Send wake/identify packet; if it throws, provider is not correct
+                    Set(Packet<AnimeMatrixPacket>(Encoding.ASCII.GetBytes("ASUS Tech.Inc.")));
+                    Logger.WriteLine("Matrix Provider OK: " + cfgVid.ToString("X4") + ":" + cfgPid.ToString("X4"));
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    try { provider.Dispose(); } catch { }
+                    _usbProvider = null;
+                    Logger.WriteLine("Matrix Provider candidate failed: " + ex.Message);
+                    return false;
+                }
+            }
+
+            // 1) Explicit device path override
+            if (!string.IsNullOrWhiteSpace(cfgPath))
+            {
+                Logger.WriteLine("Matrix Provider using config path override");
+                if (TryProvider(new WindowsUsbProvider((ushort)cfgVid, (ushort)cfgPid, cfgPath, 500))) return;
+            }
+
+            // 2) Try default strict match (feature report length)
+            try
+            {
+                base.SetProvider();
+                Logger.WriteLine("Matrix Provider default selected");
+                // Test it quickly
+                Set(Packet<AnimeMatrixPacket>(Encoding.ASCII.GetBytes("ASUS Tech.Inc.")));
+                return;
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine("Matrix default provider failed: " + ex.Message);
+            }
+
+            // 3) Enumerate all ASUS HID devices and probe candidates by path
+            try
+            {
+                var devices = DeviceList.Local.GetHidDevices((ushort)cfgVid)
+                    .OrderByDescending(d => d.GetMaxFeatureReportLength())
+                    .ToList();
+
+                foreach (var dev in devices)
+                {
+                    try
+                    {
+                        Logger.WriteLine($"Matrix candidate: PID={dev.ProductID:X4} FRL={dev.GetMaxFeatureReportLength()} PATH={dev.DevicePath}");
+                        if (TryProvider(new WindowsUsbProvider((ushort)cfgVid, dev.ProductID, dev.DevicePath, 500)))
+                        {
+                            // Save detected PID for next runs
+                            AppConfig.Set("matrix_pid", dev.ProductID);
+                            return;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.WriteLine("Matrix candidate error: " + ex.Message);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine("Matrix enumeration error: " + ex.Message);
+            }
+
+            // If we get here, provider could not be established
+            throw new IOException("Matrix device not found or not responding.");
         }
 
         public void WakeUp()
